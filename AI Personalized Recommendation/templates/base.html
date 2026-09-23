@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Personal Finance Advisor Bot{% endblock %} - AI Smart Wealth</title>
+  <meta name="description" content="AI-powered personal finance assistant for smart budgeting, expense tracking, and savings planning.">
+  
+  <!-- Modern Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  
+  <!-- Application CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+  <!-- Flash Message Toasts -->
+  <div class="toast-container" id="toast-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="toast toast-{{ category }}">
+            <i class="fas {% if category == 'success' %}fa-check-circle{% elif category == 'danger' %}fa-exclamation-circle{% elif category == 'warning' %}fa-triangle-exclamation{% else %}fa-info-circle{% endif %}"></i>
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <div class="app-container">
+    {% if current_user.is_authenticated %}
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="app-sidebar">
+      <div class="sidebar-header">
+        <div class="brand-icon">
+          <i class="fas fa-brain"></i>
+        </div>
+        <div>
+          <div class="brand-title">FinanceBot<span class="brand-badge">AI</span></div>
+          <div style="font-size: 0.72rem; color: var(--text-muted);">Smart Wealth Planner</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">Overview</div>
+        <a href="{{ url_for('dashboard.index') }}" class="nav-item {% if request.endpoint == 'dashboard.index' %}active{% endif %}" id="nav-dashboard">
+          <i class="fas fa-chart-pie"></i>
+          <span>Dashboard</span>
+        </a>
+
+        <div class="nav-section-title">Cash Flow & Tracking</div>
+        <a href="{{ url_for('transactions.income_list') }}" class="nav-item {% if request.endpoint == 'transactions.income_list' %}active{% endif %}" id="nav-income">
+          <i class="fas fa-arrow-down-left"></i>
+          <span>Income</span>
+        </a>
+        <a href="{{ url_for('transactions.expense_list') }}" class="nav-item {% if request.endpoint == 'transactions.expense_list' %}active{% endif %}" id="nav-expenses">
+          <i class="fas fa-arrow-up-right"></i>
+          <span>Expenses</span>
+        </a>
+        <a href="{{ url_for('transactions.categories') }}" class="nav-item {% if request.endpoint == 'transactions.categories' %}active{% endif %}" id="nav-categories">
+          <i class="fas fa-tags"></i>
+          <span>Categories</span>
+        </a>
+
+        <div class="nav-section-title">Planning & Wealth</div>
+        <a href="{{ url_for('budgets.index') }}" class="nav-item {% if request.endpoint == 'budgets.index' %}active{% endif %}" id="nav-budgets">
+          <i class="fas fa-wallet"></i>
+          <span>Budgets & 50/30/20</span>
+        </a>
+        <a href="{{ url_for('savings.index') }}" class="nav-item {% if request.endpoint == 'savings.index' %}active{% endif %}" id="nav-savings">
+          <i class="fas fa-piggy-bank"></i>
+          <span>Savings & Runway</span>
+        </a>
+
+        <div class="nav-section-title">Intelligence</div>
+        <a href="{{ url_for('ai_advisor.index') }}" class="nav-item {% if request.endpoint == 'ai_advisor.index' %}active{% endif %}" id="nav-advisor">
+          <i class="fas fa-robot"></i>
+          <span>AI Advisor & Audit</span>
+          <span class="nav-badge">Live</span>
+        </a>
+        <a href="{{ url_for('reports.monthly') }}" class="nav-item {% if request.endpoint == 'reports.monthly' %}active{% endif %}" id="nav-reports">
+          <i class="fas fa-file-invoice-dollar"></i>
+          <span>Monthly Statements</span>
+        </a>
+
+        <div class="nav-section-title">Account</div>
+        <a href="{{ url_for('profile.index') }}" class="nav-item {% if request.endpoint == 'profile.index' %}active{% endif %}" id="nav-profile">
+          <i class="fas fa-sliders"></i>
+          <span>Settings & AI Config</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-avatar">
+          {{ current_user.username[0]|upper }}
+        </div>
+        <div class="user-info">
+          <div class="user-name">{{ current_user.username }}</div>
+          <div class="user-role">{{ current_user.currency }} Currency</div>
+        </div>
+        <a href="{{ url_for('auth.logout') }}" title="Sign Out" style="color: var(--text-muted); font-size: 1.1rem; padding: 6px;" id="btn-logout">
+          <i class="fas fa-arrow-right-from-bracket"></i>
+        </a>
+      </div>
+    </aside>
+    {% endif %}
+
+    <!-- Main Content Area -->
+    <main class="main-wrapper" style="{% if not current_user.is_authenticated %}margin-left: 0;{% endif %}">
+      {% if current_user.is_authenticated %}
+      <!-- Topbar Header -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-btn" id="mobile-menu-toggle" aria-label="Toggle Navigation">
+            <i class="fas fa-bars"></i>
+          </button>
+          <h1 class="page-headline">{% block page_title %}Financial Dashboard{% endblock %}</h1>
+        </div>
+
+        <div class="topbar-right">
+          <!-- Quick Add Buttons -->
+          <button class="btn btn-secondary btn-sm" data-modal-target="global-income-modal" id="quick-add-income-btn">
+            <i class="fas fa-plus" style="color: var(--color-success);"></i> Add Income
+          </button>
+          <button class="btn btn-primary btn-sm" data-modal-target="global-expense-modal" id="quick-add-expense-btn">
+            <i class="fas fa-plus"></i> Record Expense
+          </button>
+        </div>
+      </header>
+      {% endif %}
+
+      <div class="page-content">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+
+  {% if current_user.is_authenticated %}
+  <!-- =========================================================================
+       GLOBAL QUICK ADD MODALS
+       ========================================================================= -->
+  
+  <!-- Global Quick Add Income Modal -->
+  <div class="modal-overlay" id="global-income-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-arrow-down-left" style="color: var(--color-success); margin-right: 8px;"></i>Record New Income</div>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form action="{{ url_for('transactions.income_list') }}" method="POST">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="inc_source">Income Source</label>
+            <input type="text" id="inc_source" name="source" class="form-control" placeholder="e.g. Salary, Freelance, Dividend" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="inc_amount">Amount ({{ current_user.currency }})</label>
+            <input type="number" id="inc_amount" name="amount" step="0.01" min="0.01" class="form-control" placeholder="0.00" required>
+          </div>
+          <div class="two-col-grid" style="gap: 16px;">
+            <div class="form-group">
+              <label class="form-label" for="inc_date">Date</label>
+              <input type="date" id="inc_date" name="date" class="form-control" value="{{ now.strftime('%Y-%m-%d') }}" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="inc_frequency">Frequency</label>
+              <select id="inc_frequency" name="frequency" class="form-control">
+                <option value="One-Time">One-Time</option>
+                <option value="Monthly" selected>Monthly</option>
+                <option value="Bi-Weekly">Bi-Weekly</option>
+                <option value="Weekly">Weekly</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="inc_notes">Notes / Reference</label>
+            <input type="text" id="inc_notes" name="notes" class="form-control" placeholder="Optional reference or invoice details">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Save Income</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Global Quick Add Expense Modal -->
+  <div class="modal-overlay" id="global-expense-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fas fa-arrow-up-right" style="color: var(--color-danger); margin-right: 8px;"></i>Record New Expense</div>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form action="{{ url_for('transactions.expense_list') }}" method="POST">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="exp_description">Description</label>
+            <input type="text" id="exp_description" name="description" class="form-control" placeholder="e.g. Whole Foods Groceries, Electric Bill" required>
+          </div>
+          <div class="two-col-grid" style="gap: 16px;">
+            <div class="form-group">
+              <label class="form-label" for="exp_amount">Amount ({{ current_user.currency }})</label>
+              <input type="number" id="exp_amount" name="amount" step="0.01" min="0.01" class="form-control" placeholder="0.00" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="exp_date">Date</label>
+              <input type="date" id="exp_date" name="date" class="form-control" value="{{ now.strftime('%Y-%m-%d') }}" required>
+            </div>
+          </div>
+          <div class="two-col-grid" style="gap: 16px;">
+            <div class="form-group">
+              <label class="form-label" for="exp_category_id">Category</label>
+              <select id="exp_category_id" name="category_id" class="form-control" required>
+                <!-- Categories loaded via context or direct option -->
+                <option value="1">Housing & Rent</option>
+                <option value="2">Groceries</option>
+                <option value="3">Utilities & Bills</option>
+                <option value="4">Transportation</option>
+                <option value="5">Healthcare & Medical</option>
+                <option value="6">Dining & Takeout</option>
+                <option value="7">Entertainment & Leisure</option>
+                <option value="8">Shopping & Lifestyle</option>
+                <option value="9">Investments & Debt</option>
+                <option value="10">Personal & Education</option>
+                <option value="11">Miscellaneous</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="exp_payment_method">Payment Method</label>
+              <select id="exp_payment_method" name="payment_method" class="form-control">
+                <option value="Credit Card" selected>Credit Card</option>
+                <option value="Debit Card">Debit Card</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="UPI">UPI</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Record Expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Application Logic -->
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

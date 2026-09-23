@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Monthly Statement - FinanceBot AI{% endblock %}
+{% block page_title %}Monthly Financial Statement & Analytics{% endblock %}
+
+{% block content %}
+<!-- Controls Header -->
+<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+  <div>
+    <h2 style="font-size: 1.4rem; font-weight: 800; color: #fff;">Financial Performance Report</h2>
+    <p style="color: var(--text-secondary); font-size: 0.85rem;">Comprehensive monthly ledger statement and executive analysis</p>
+  </div>
+
+  <div style="display: flex; gap: 10px; align-items: center;">
+    <form method="GET" action="{{ url_for('reports.monthly') }}" style="display: flex; gap: 6px;">
+      <select name="month" class="form-control" style="width: auto; padding: 7px 10px; font-size: 0.85rem;" onchange="this.form.submit()">
+        {% for m in range(1, 13) %}
+          <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>
+            {{ ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m-1] }}
+          </option>
+        {% endfor %}
+      </select>
+      <select name="year" class="form-control" style="width: auto; padding: 7px 10px; font-size: 0.85rem;" onchange="this.form.submit()">
+        {% for y in [current_year - 1, current_year, current_year + 1] %}
+          <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </form>
+
+    <button onclick="window.print()" class="btn btn-primary btn-sm" id="btn-print-statement">
+      <i class="fas fa-print"></i> Print / PDF Export
+    </button>
+  </div>
+</div>
+
+<!-- Statement Paper Card -->
+<div class="glass-card" style="background: rgba(15, 23, 42, 0.9); border: 1px solid var(--border-glass-bright); padding: 36px;">
+  
+  <!-- Statement Header -->
+  <div style="display: flex; justify-content: space-between; border-bottom: 2px solid var(--border-glass); padding-bottom: 24px; margin-bottom: 28px; flex-wrap: wrap; gap: 16px;">
+    <div>
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+        <div class="brand-icon" style="width: 36px; height: 36px; font-size: 1.1rem;"><i class="fas fa-brain"></i></div>
+        <span style="font-size: 1.25rem; font-weight: 800; color: #fff;">FinanceBot Statement</span>
+      </div>
+      <div style="color: var(--text-muted); font-size: 0.85rem;">Autonomous Personal Financial Management</div>
+    </div>
+
+    <div style="text-align: right;">
+      <div style="font-size: 1.1rem; font-weight: 700; color: #fff;">{{ summary.month_name }}</div>
+      <div style="font-size: 0.85rem; color: var(--text-secondary);">Account Holder: <strong>{{ current_user.username }}</strong></div>
+      <div style="font-size: 0.8rem; color: var(--text-muted);">Generated: {{ now.strftime('%Y-%m-%d %H:%M UTC') }}</div>
+    </div>
+  </div>
+
+  <!-- Key Metrics Summary Grid -->
+  <div class="stats-grid" style="margin-bottom: 32px;">
+    <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-glass);">
+      <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Total Income</div>
+      <div style="font-size: 1.4rem; font-weight: 800; color: var(--color-success); margin-top: 4px;">
+        {{ summary.total_income|currency(current_user.currency) }}
+      </div>
+    </div>
+
+    <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-glass);">
+      <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Total Outflow</div>
+      <div style="font-size: 1.4rem; font-weight: 800; color: #f87171; margin-top: 4px;">
+        {{ summary.total_expenses|currency(current_user.currency) }}
+      </div>
+    </div>
+
+    <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-glass);">
+      <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Net Cash Flow</div>
+      <div style="font-size: 1.4rem; font-weight: 800; color: {% if summary.net_savings >= 0 %}#38bdf8{% else %}#ef4444{% endif %}; margin-top: 4px;">
+        {{ summary.net_savings|currency(current_user.currency) }}
+      </div>
+    </div>
+
+    <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-glass);">
+      <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Savings Rate</div>
+      <div style="font-size: 1.4rem; font-weight: 800; color: #fff; margin-top: 4px;">
+        {{ summary.savings_rate }}%
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Category Spending Ledger -->
+  <h3 style="font-size: 1.15rem; font-weight: 800; color: #fff; margin-bottom: 14px;">
+    Category-Wise Expenditure Breakdown
+  </h3>
+  
+  <div class="table-container" style="margin-bottom: 36px;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Type</th>
+          <th style="text-align: right;">Budget Allocated</th>
+          <th style="text-align: right;">Actual Spent</th>
+          <th style="text-align: right;">Variance</th>
+          <th style="text-align: center;">Utilization</th>
+          <th style="text-align: center;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in category_spending %}
+        <tr>
+          <td style="font-weight: 600; color: #fff;">
+            <i class="fas fa-{{ cat.icon }}" style="color: {{ cat.color }}; margin-right: 8px;"></i>
+            {{ cat.category_name }}
+          </td>
+          <td>
+            <span class="status-pill {% if cat.category_type == 'needs' %}info{% elif cat.category_type == 'wants' %}warning{% else %}safe{% endif %}">
+              {{ cat.category_type|capitalize }}
+            </span>
+          </td>
+          <td style="text-align: right; color: var(--text-secondary);">
+            {{ cat.allocated|currency(current_user.currency) if cat.allocated > 0 else '—' }}
+          </td>
+          <td style="text-align: right; font-weight: 700; color: #fff;">
+            {{ cat.spent|currency(current_user.currency) }}
+          </td>
+          <td style="text-align: right; font-weight: 600; color: {% if cat.remaining < 0 %}#ef4444{% else %}var(--color-success){% endif %};">
+            {% if cat.allocated > 0 %}
+              {{ cat.remaining|currency(current_user.currency) }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td style="text-align: center;">
+            {{ cat.utilization }}%
+          </td>
+          <td style="text-align: center;">
+            <span class="status-pill {{ cat.status }}">{{ cat.status|capitalize }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 50/30/20 Rule Analysis Section -->
+  <h3 style="font-size: 1.15rem; font-weight: 800; color: #fff; margin-bottom: 14px;">
+    50/30/20 Framework Compliance
+  </h3>
+
+  <div class="stats-grid" style="margin-bottom: 36px;">
+    <div style="padding: 16px; background: rgba(255,255,255,0.02); border-radius: var(--radius-md); border: 1px solid var(--border-glass);">
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;">
+        <span style="color: #93c5fd;">Needs (Essential)</span>
+        <span style="color: #fff;">{{ split_50_30_20.needs.pct }}% (Target: 50%)</span>
+      </div>
+      <div style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 8px;">
+        {{ split_50_30_20.needs.amount|currency(current_user.currency) }}
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill {% if split_50_30_20.needs.pct <= 50 %}safe{% else %}warning{% endif %}" style="width: {{ [split_50_30_20.needs.pct, 100]|min }}%;"></div>
+      </div>
+    </div>
+
+    <div style="padding: 16px; background: rgba(255,255,255,0.02); border-radius: var(--radius-md); border: 1px solid var(--border-glass);">
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;">
+        <span style="color: #f472b6;">Wants (Discretionary)</span>
+        <span style="color: #fff;">{{ split_50_30_20.wants.pct }}% (Target: 30%)</span>
+      </div>
+      <div style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 8px;">
+        {{ split_50_30_20.wants.amount|currency(current_user.currency) }}
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill {% if split_50_30_20.wants.pct <= 30 %}safe{% else %}warning{% endif %}" style="width: {{ [split_50_30_20.wants.pct, 100]|min }}%;"></div>
+      </div>
+    </div>
+
+    <div style="padding: 16px; background: rgba(255,255,255,0.02); border-radius: var(--radius-md); border: 1px solid var(--border-glass);">
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;">
+        <span style="color: #34d399;">Savings & Investments</span>
+        <span style="color: #fff;">{{ split_50_30_20.savings.pct }}% (Target: 20%)</span>
+      </div>
+      <div style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 8px;">
+        {{ split_50_30_20.savings.amount|currency(current_user.currency) }}
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill {% if split_50_30_20.savings.pct >= 20 %}safe{% else %}warning{% endif %}" style="width: {{ [split_50_30_20.savings.pct, 100]|min }}%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Executive Summary if available -->
+  {% if latest_rec %}
+  <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: var(--radius-md); padding: 20px;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+      <i class="fas fa-brain" style="color: #818cf8;"></i>
+      <h4 style="color: #fff; font-weight: 700; font-size: 1rem;">AI Advisor Executive Summary</h4>
+    </div>
+    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6;">
+      {{ latest_rec.summary }}
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

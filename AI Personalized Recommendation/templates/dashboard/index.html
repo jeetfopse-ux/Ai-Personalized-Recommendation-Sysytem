@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - FinanceBot AI{% endblock %}
+{% block page_title %}Financial Intelligence Dashboard{% endblock %}
+
+{% block content %}
+<!-- Top Filter Bar -->
+<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+  <div>
+    <h2 style="font-size: 1.4rem; font-weight: 800; color: #fff;">{{ summary.month_name }}</h2>
+    <p style="color: var(--text-secondary); font-size: 0.85rem;">Real-time cash flow, category distributions, and AI insights</p>
+  </div>
+
+  <!-- Month / Year Selector -->
+  <form method="GET" action="{{ url_for('dashboard.index') }}" style="display: flex; gap: 8px; align-items: center;">
+    <select name="month" class="form-control" style="width: auto; padding: 7px 12px; font-size: 0.85rem;" onchange="this.form.submit()">
+      {% for m in range(1, 13) %}
+        <option value="{{ m }}" {% if m == month %}selected{% endif %}>
+          {{ ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m-1] }}
+        </option>
+      {% endfor %}
+    </select>
+    <select name="year" class="form-control" style="width: auto; padding: 7px 12px; font-size: 0.85rem;" onchange="this.form.submit()">
+      {% for y in [current_year - 1, current_year, current_year + 1] %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<!-- 4 Core KPI Stat Cards -->
+<div class="stats-grid">
+  <!-- 1. Total Income -->
+  <div class="glass-card stat-card glass-card-interactive">
+    <div class="stat-header">
+      <span class="stat-title">Total Income</span>
+      <div class="stat-icon income"><i class="fas fa-arrow-down-left"></i></div>
+    </div>
+    <div class="stat-value" style="color: var(--color-success);">
+      {{ summary.total_income|currency(current_user.currency) }}
+    </div>
+    <div class="stat-footer">
+      <span class="trend-badge positive"><i class="fas fa-check"></i> {{ summary.income_count }} sources</span>
+      <span>recorded this month</span>
+    </div>
+  </div>
+
+  <!-- 2. Total Expenses -->
+  <div class="glass-card stat-card glass-card-interactive">
+    <div class="stat-header">
+      <span class="stat-title">Total Expenses</span>
+      <div class="stat-icon expense"><i class="fas fa-arrow-up-right"></i></div>
+    </div>
+    <div class="stat-value" style="color: #f87171;">
+      {{ summary.total_expenses|currency(current_user.currency) }}
+    </div>
+    <div class="stat-footer">
+      <span class="trend-badge {% if budget_perf.overall_utilization > 100 %}negative{% elif budget_perf.overall_utilization > 80 %}neutral{% else %}positive{% endif %}">
+        {{ budget_perf.overall_utilization }}% budget spent
+      </span>
+      <span>across {{ summary.expense_count }} txs</span>
+    </div>
+  </div>
+
+  <!-- 3. Net Savings -->
+  <div class="glass-card stat-card glass-card-interactive">
+    <div class="stat-header">
+      <span class="stat-title">Net Savings</span>
+      <div class="stat-icon savings"><i class="fas fa-piggy-bank"></i></div>
+    </div>
+    <div class="stat-value" style="color: {% if summary.net_savings >= 0 %}#38bdf8{% else %}#ef4444{% endif %};">
+      {{ summary.net_savings|currency(current_user.currency) }}
+    </div>
+    <div class="stat-footer">
+      <span class="trend-badge {% if summary.savings_rate >= 20 %}positive{% elif summary.savings_rate > 0 %}neutral{% else %}negative{% endif %}">
+        <i class="fas fa-chart-line"></i> {{ summary.savings_rate }}%
+      </span>
+      <span>savings rate (target: 20%)</span>
+    </div>
+  </div>
+
+  <!-- 4. Financial Health Score -->
+  <div class="glass-card stat-card glass-card-interactive">
+    <div class="stat-header">
+      <span class="stat-title">AI Financial Health</span>
+      <div class="stat-icon health"><i class="fas fa-shield-heart"></i></div>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 8px;">
+      <div class="stat-value" style="color: {{ health.color }};">
+        {{ health.score }}<span style="font-size: 1rem; color: var(--text-muted);">/100</span>
+      </div>
+      <span class="status-pill" style="background: rgba(255,255,255,0.08); color: {{ health.color }}; font-size: 0.8rem;">
+        {{ health.rating }}
+      </span>
+    </div>
+    <div class="stat-footer">
+      <span class="trend-badge neutral"><i class="fas fa-clock"></i> {{ emergency.runway_months }} mos runway</span>
+      <span>emergency safety buffer</span>
+    </div>
+  </div>
+</div>
+
+<!-- Overspending Warning Banner if any -->
+{% if budget_perf.overbudget_count > 0 %}
+<div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: var(--radius-lg); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+  <div style="display: flex; align-items: center; gap: 14px;">
+    <div style="width: 38px; height: 38px; border-radius: 50%; background: #ef4444; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">
+      <i class="fas fa-triangle-exclamation"></i>
+    </div>
+    <div>
+      <div style="font-weight: 700; color: #fecaca; font-size: 0.95rem;">
+        Overbudget Alert: {{ budget_perf.overbudget_count }} {% if budget_perf.overbudget_count == 1 %}Category Exceeded{% else %}Categories Exceeded{% endif %}
+      </div>
+      <div style="font-size: 0.83rem; color: #fca5a5;">
+        {% for ob in budget_perf.overbudget_items %}
+          <strong>{{ ob.category_name }}</strong> (Spent {{ ob.spent|currency(current_user.currency) }} of {{ ob.allocated|currency(current_user.currency) }}){% if not loop.last %}, {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <a href="{{ url_for('budgets.index', year=year, month=month) }}" class="btn btn-danger btn-sm">
+    Adjust Budgets <i class="fas fa-arrow-right"></i>
+  </a>
+</div>
+{% endif %}
+
+<!-- Main Interactive Charts Grid -->
+<div class="charts-grid">
+  <!-- 6-Month Income vs Expense Trend -->
+  <div class="glass-card">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+      <div>
+        <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff;">Cash Flow Trajectory (Last 6 Months)</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Comparing total earnings against expenditures</p>
+      </div>
+    </div>
+    <div style="position: relative; height: 280px; width: 100%;">
+      <canvas id="cashFlowTrendChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Category Expense Breakdown Donut -->
+  <div class="glass-card">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+      <div>
+        <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff;">Expense Breakdown</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Category share of {{ summary.month_name }}</p>
+      </div>
+    </div>
+    <div style="position: relative; height: 280px; width: 100%;">
+      <canvas id="categoryExpenseChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Secondary Analytics: 50/30/20 Rule + AI Advice Snippet -->
+<div class="two-col-grid">
+  <!-- 50/30/20 Rule Analysis -->
+  <div class="glass-card">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+      <div>
+        <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff;">50 / 30 / 20 Budget Rule</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Benchmark against healthy financial allocation guidelines</p>
+      </div>
+      <a href="{{ url_for('budgets.index') }}" class="btn btn-secondary btn-sm" style="font-size: 0.78rem;">Plan</a>
+    </div>
+
+    <!-- Needs (50%) -->
+    <div style="margin-bottom: 14px;">
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;">
+        <span style="font-weight: 600; color: #93c5fd;">Essential Needs (Housing, Groceries, Utilities)</span>
+        <span style="font-weight: 700; color: #fff;">{{ split_50_30_20.needs.amount|currency(current_user.currency) }} ({{ split_50_30_20.needs.pct }}% / 50%)</span>
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill {% if split_50_30_20.needs.pct <= 50 %}safe{% elif split_50_30_20.needs.pct <= 60 %}warning{% else %}critical{% endif %}" style="width: {{ [split_50_30_20.needs.pct, 100]|min }}%;"></div>
+      </div>
+    </div>
+
+    <!-- Wants (30%) -->
+    <div style="margin-bottom: 14px;">
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;">
+        <span style="font-weight: 600; color: #f472b6;">Discretionary Wants (Dining, Shopping, Fun)</span>
+        <span style="font-weight: 700; color: #fff;">{{ split_50_30_20.wants.amount|currency(current_user.currency) }} ({{ split_50_30_20.wants.pct }}% / 30%)</span>
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill {% if split_50_30_20.wants.pct <= 30 %}safe{% elif split_50_30_20.wants.pct <= 40 %}warning{% else %}critical{% endif %}" style="width: {{ [split_50_30_20.wants.pct, 100]|min }}%;"></div>
+      </div>
+    </div>
+
+    <!-- Savings (20%) -->
+    <div>
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;">
+        <span style="font-weight: 600; color: #34d399;">Savings, Investments & Emergency</span>
+        <span style="font-weight: 700; color: #fff;">{{ split_50_30_20.savings.amount|currency(current_user.currency) }} ({{ split_50_30_20.savings.pct }}% / 20%)</span>
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill {% if split_50_30_20.savings.pct >= 20 %}safe{% elif split_50_30_20.savings.pct >= 10 %}warning{% else %}critical{% endif %}" style="width: {{ [split_50_30_20.savings.pct, 100]|min }}%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Financial Intelligence Snippet -->
+  <div class="glass-card" style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 32px; height: 32px; border-radius: var(--radius-md); background: var(--accent-gradient); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.9rem;">
+          <i class="fas fa-wand-magic-sparkles"></i>
+        </div>
+        <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff;">AI Advisor Insights</h3>
+      </div>
+      <a href="{{ url_for('ai_advisor.index') }}" class="btn btn-primary btn-sm" id="btn-open-ai-advisor">
+        Open Chatbot <i class="fas fa-arrow-right"></i>
+      </a>
+    </div>
+
+    {% if latest_rec %}
+    <div style="color: var(--text-secondary); font-size: 0.88rem; line-height: 1.5; margin-bottom: 16px;">
+      {{ latest_rec.summary }}
+    </div>
+    {% else %}
+    <div style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px;">
+      Generate your first complete AI Financial Audit to reveal personalized cost optimization, debt management, and savings growth strategies.
+    </div>
+    {% endif %}
+
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+      <form action="{{ url_for('ai_advisor.trigger_audit') }}" method="POST">
+        <button type="submit" class="btn btn-secondary btn-sm" id="btn-generate-quick-audit">
+          <i class="fas fa-rotate"></i> Run Health Audit
+        </button>
+      </form>
+      <a href="{{ url_for('reports.monthly', year=year, month=month) }}" class="btn btn-secondary btn-sm">
+        <i class="fas fa-file-invoice"></i> View Full Statement
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Transactions Table -->
+<div class="glass-card">
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px;">
+    <div>
+      <h3 style="font-size: 1.1rem; font-weight: 700; color: #fff;">Recent Activity</h3>
+      <p style="font-size: 0.82rem; color: var(--text-muted);">Latest income and expenditures</p>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <a href="{{ url_for('transactions.income_list') }}" class="btn btn-secondary btn-sm">All Income</a>
+      <a href="{{ url_for('transactions.expense_list') }}" class="btn btn-secondary btn-sm">All Expenses</a>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Description / Source</th>
+          <th>Category / Method</th>
+          <th style="text-align: right;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exp in recent_expenses[:5] %}
+        <tr>
+          <td>{{ exp.date.strftime('%b %d, %Y') }}</td>
+          <td><span class="status-pill critical"><i class="fas fa-arrow-up"></i> Expense</span></td>
+          <td style="font-weight: 600; color: #fff;">{{ exp.description }}</td>
+          <td>
+            <span class="category-badge" style="background: rgba(255,255,255,0.06); color: {{ exp.category.color }};">
+              <i class="fas fa-{{ exp.category.icon }}"></i> {{ exp.category.name }}
+            </span>
+          </td>
+          <td style="text-align: right; font-weight: 700; color: #f87171;">
+            -{{ exp.amount|currency(current_user.currency) }}
+          </td>
+        </tr>
+        {% endfor %}
+
+        {% for inc in recent_incomes[:3] %}
+        <tr>
+          <td>{{ inc.date.strftime('%b %d, %Y') }}</td>
+          <td><span class="status-pill safe"><i class="fas fa-arrow-down"></i> Income</span></td>
+          <td style="font-weight: 600; color: #fff;">{{ inc.source }}</td>
+          <td>
+            <span class="status-pill safe">{{ inc.frequency }}</span>
+          </td>
+          <td style="text-align: right; font-weight: 700; color: var(--color-success);">
+            +{{ inc.amount|currency(current_user.currency) }}
+          </td>
+        </tr>
+        {% endfor %}
+
+        {% if not recent_expenses and not recent_incomes %}
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 32px; color: var(--text-muted);">
+            No transactions recorded yet. Use the buttons above to log your first income or expense!
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

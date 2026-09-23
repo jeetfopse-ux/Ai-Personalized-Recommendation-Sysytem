@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}AI Financial Advisor & Audit - FinanceBot AI{% endblock %}
+{% block page_title %}AI Financial Advisor & Health Audit{% endblock %}
+
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+  <div>
+    <h2 style="font-size: 1.4rem; font-weight: 800; color: #fff;">AI Advisory Intelligence</h2>
+    <p style="color: var(--text-secondary); font-size: 0.85rem;">Continuous generative financial audits, overspending detection, and conversational planning</p>
+  </div>
+
+  <form action="{{ url_for('ai_advisor.trigger_audit') }}" method="POST">
+    <button type="submit" class="btn btn-primary btn-sm" id="btn-run-full-audit">
+      <i class="fas fa-wand-magic-sparkles"></i> Generate Full AI Audit
+    </button>
+  </form>
+</div>
+
+<!-- Main Two-Column View: Audit Report on Left, Interactive Chatbot on Right -->
+<div class="two-col-grid" style="align-items: start;">
+
+  <!-- LEFT: Latest AI Audit & Health Scorecard -->
+  <div style="display: flex; flex-direction: column; gap: 20px;">
+    
+    <!-- Health Score Banner Card -->
+    <div class="glass-card health-score-card" style="border-color: {{ health.color }}40;">
+      <div class="health-circle" style="border-color: {{ health.color }};">
+        <span class="health-number" style="color: {{ health.color }};">{{ health.score }}</span>
+        <span class="health-denom">/ 100</span>
+      </div>
+      <div>
+        <div style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.8px;">
+          Overall Financial Health Score
+        </div>
+        <h3 style="font-size: 1.3rem; font-weight: 800; color: #fff; margin-top: 2px;">
+          {{ health.rating }} Health Condition
+        </h3>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+          <span class="status-pill safe">
+            <i class="fas fa-chart-line"></i> {{ health.savings_rate }}% Saved
+          </span>
+          <span class="status-pill {% if health.utilization > 95 %}critical{% elif health.utilization > 80 %}warning{% else %}safe{% endif %}">
+            <i class="fas fa-wallet"></i> {{ health.utilization }}% Budget Spent
+          </span>
+          <span class="status-pill info">
+            <i class="fas fa-shield"></i> {{ health.runway_months }} Mos Runway
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Generated Audit Markdown Document -->
+    <div class="glass-card" style="max-height: 520px; overflow-y: auto;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid var(--border-glass); padding-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <i class="fas fa-file-waveform" style="color: var(--accent-primary);"></i>
+          <h3 style="font-size: 1.05rem; font-weight: 700; color: #fff;">Financial Health Audit Report</h3>
+        </div>
+        {% if latest_audit %}
+        <span style="font-size: 0.75rem; color: var(--text-muted);">
+          {{ latest_audit.created_at.strftime('%b %d, %Y - %I:%M %p') }}
+        </span>
+        {% endif %}
+      </div>
+
+      {% if latest_audit %}
+      <div style="color: var(--text-secondary); font-size: 0.92rem; line-height: 1.6;" class="audit-content">
+        <!-- Render formatted markdown/paragraphs -->
+        {% for line in latest_audit.detailed_markdown.split('\n') %}
+          {% if line.startswith('### ') %}
+            <h4 style="color: #fff; font-weight: 700; margin-top: 18px; margin-bottom: 8px; font-size: 1rem;">{{ line[4:] }}</h4>
+          {% elif line.startswith('* ') or line.startswith('- ') %}
+            <div style="display: flex; gap: 8px; margin-bottom: 6px; padding-left: 8px;">
+              <span style="color: var(--accent-primary);">•</span>
+              <div>{{ line[2:]|safe }}</div>
+            </div>
+          {% elif line.strip() %}
+            <p style="margin-bottom: 10px;">{{ line|safe }}</p>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align: center; padding: 48px; color: var(--text-muted);">
+        <i class="fas fa-microchip" style="font-size: 2.2rem; margin-bottom: 12px; color: var(--accent-secondary);"></i>
+        <p style="font-weight: 600; color: #fff;">No AI audit generated yet</p>
+        <p style="font-size: 0.85rem; margin-top: 4px;">Click the "Generate Full AI Audit" button above to evaluate your income, expenses, and savings resilience.</p>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Conversational AI FinanceBot -->
+  <div class="chat-window">
+    <div class="chat-header">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div class="brand-icon" style="width: 36px; height: 36px; font-size: 1.1rem;">
+          <i class="fas fa-robot"></i>
+        </div>
+        <div>
+          <div style="font-weight: 700; font-size: 0.95rem; color: #fff;">FinanceBot AI Advisor</div>
+          <div style="font-size: 0.72rem; color: var(--color-success); display: flex; align-items: center; gap: 4px;">
+            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--color-success);"></span>
+            Live & Context-Aware
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="clear-chat-btn" style="font-size: 0.75rem;">
+        <i class="fas fa-trash"></i> Reset Chat
+      </button>
+    </div>
+
+    <!-- Message Bubble Area -->
+    <div class="chat-messages" id="chat-messages-container">
+      {% for msg in chat_history %}
+      <div class="chat-bubble {{ msg.role }}">
+        <p>{{ msg.message|replace('\n', '<br>')|safe }}</p>
+      </div>
+      {% else %}
+      <div class="chat-bubble assistant">
+        <p>👋 Hello {{ current_user.username }}! I am your AI Finance Advisor. I am continuously aware of your income, expenses, and savings targets. Ask me anything about budgeting, reducing spending, or reaching your financial goals!</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Quick Suggestion Chips -->
+    <div class="chat-chips">
+      <button class="chip-btn">💡 How can I save $300 more?</button>
+      <button class="chip-btn">📊 Is my dining spending high?</button>
+      <button class="chip-btn">🛡️ Review my emergency fund runway</button>
+      <button class="chip-btn">🎯 Suggest a 50/30/20 budget plan</button>
+    </div>
+
+    <!-- Input Bar -->
+    <form class="chat-input-bar" id="ai-chat-form">
+      <input type="text" id="ai-chat-input" class="form-control" placeholder="Ask FinanceBot a question about your money..." autocomplete="off" required>
+      <button type="submit" class="btn btn-primary" id="btn-send-chat" style="padding: 0 20px;">
+        <i class="fas fa-paper-plane"></i>
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
